@@ -1,81 +1,67 @@
-<!DOCTYPE html>
-<html>
+<?php
+require_once 'vendor/autoload.php';
 
-<head>
-  <title>Cadastro de eventos</title>
-</head>
+use \Psr\Http\Message\ServerRequestInterface as Request;
+use \Psr\Http\Message\ResponseInterface as Response;
 
-<body>
-  <h1>Cadastro de eventos</h1>
+$app = new \Slim\App;
 
-  <form method="post" action="processaform.php">
-    <table>
-      <tr>
-        <td>
-          <label>Título do evento:</label>
-        </td>
-        <td>
-          <input name="titulo" />
-        </td>
-      </tr>
-      <tr>
-        <td>
-          <label>Início das inscrições:</label>
-        </td>
-        <td>
-          <input type="date" name="dt_inicio_inscricao" />
-        </td>
-      </tr>
-      <tr>
-        <td>
-          <label>Fim das inscrições:</label>
-        </td>
-        <td>
-          <input type="date" name="dt_fim_inscricao" />
-        </td>
-      </tr>
-      <tr>
-        <td>
-          <label>Data do evento:</label>
-        </td>
-        <td>
-          <input type="date" name="dt_evento" />
-        </td>
-      </tr>
-      <tr>
-        <td>
-          <label>Texto:</label>
-        </td>
-        <td>
-          <textarea name="texto"></textarea>
-        </td>
-      </tr>
-      <tr>
-        <td>
-          <label>Tem certificado?</label>
-        </td>
-        <td>
-          <input type="checkbox" name="certificado" value="true">
-        </td>
-      </tr>
-      <tr>
-        <td>
-          <label>Vagas:</label>
-        </td>
-        <td>
-          <input name="vagas" type="number" />
-        </td>
-      </tr>
-      <tr>
-        <td colspan="2" style="text-align: center">
-          <button>Enviar</button>
-        </td>
-      </tr>
-    </table>
-  </form>
+$container = $app->getContainer();
 
-  <a href="relatorio.php">Relatório</a>
+// Register component on container
+$container['view'] = function ($container) {
+  return new \Slim\Views\Twig('./templates');
+};
 
-</body>
+$app->get('/', function ($req, $res) {
+  return $this->view->render($res, 'form.html');
+});
 
-</html>
+$app->post('/processaform', function ($req, $res) {
+  require('./db.config.php');
+  $form = $req->getParsedBody();
+
+  if ($form['certificado'] == 'true') {
+    $certificado = 'true';
+  } else {
+    $certificado = 'false';
+  }
+  $query = "INSERT INTO eventos (titulo, dt_inicio_inscricao, dt_fim_inscricao, dt_evento, texto, vagas, certificado) values("
+    . "'" . $form['titulo'] . "',"
+    . "'" . $form['dt_inicio_inscricao'] . "',"
+    . "'" . $form['dt_fim_inscricao'] . "',"
+    . "'" . $form['dt_evento'] . "',"
+    . "'" . $form['texto'] . "',"
+    . $form['vagas'] . ","
+    . "'" . $certificado . "'"
+    . ")";
+    
+  try {
+    $st = $conn->prepare($query);
+    $st->execute();
+    $resposta = 'OK!';
+  } catch(PDOException $e) {
+    $resposta = $e;
+  }
+  return $res->getBody()->write($resposta);
+});
+
+
+$app->get('/relatorio', function ($req, $res) {
+    require('./db.config.php');
+    $sql = "SELECT * FROM eventos ORDER BY dt_evento DESC";
+  
+    try {
+      $result = $conn->query($sql, PDO::FETCH_ASSOC);
+      $rows = [];
+      foreach($result as $row) {
+        $rows[] = $row;
+      }
+      return $this->view->render($res, 'relatorio.html', ['eventos' => $rows]);
+    } catch(PDOException $e) {
+      echo $e;
+    }
+  return $res;
+});
+
+$app->run();
